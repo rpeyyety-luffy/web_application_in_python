@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Learn APIs - Books & Weather</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #222; }
+    section { border: 1px solid #ddd; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
+    h2 { margin-top: 0; }
+    input { padding: 6px 8px; margin-right: 6px; }
+    button { padding: 6px 12px; cursor: pointer; }
+    li { margin: 6px 0; }
+    li button { margin-left: 8px; font-size: 0.8em; }
+    pre { background: #f4f4f4; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 0.85em; }
+    .error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h1>Learning APIs</h1>
+
+  <!-- ===================== BOOKS: calls OUR API ===================== -->
+  <section>
+    <h2>Books (our own API)</h2>
+    <ul id="book-list"></ul>
+
+    <input id="title" placeholder="Title">
+    <input id="author" placeholder="Author">
+    <button onclick="addBook()">Add book</button>
+    <p id="book-error" class="error"></p>
+  </section>
+
+  <!-- ============ WEATHER: our API, which calls Open-Meteo ============ -->
+  <section>
+    <h2>Weather (our API calls Open-Meteo)</h2>
+    <input id="city" placeholder="City, e.g. London">
+    <button onclick="getWeather()">Get weather</button>
+    <p id="weather-result"></p>
+  </section>
+
+  <!-- Shows the raw JSON of the last API response, so you can see what APIs return -->
+  <section>
+    <h2>Last raw API response</h2>
+    <pre id="raw">(nothing yet)</pre>
+  </section>
+
+  <script>
+    // Helper: show the raw request + JSON response at the bottom of the page.
+    function showRaw(method, url, status, data) {
+      document.getElementById("raw").textContent =
+        `${method} ${url}  ->  status ${status}\n\n` + JSON.stringify(data, null, 2);
+    }
+
+    // ---------- GET /api/books ----------
+    async function loadBooks() {
+      // fetch() sends an HTTP request. By default it uses the GET method.
+      const response = await fetch("/api/books");
+      const books = await response.json();       // read the JSON body
+      showRaw("GET", "/api/books", response.status, books);
+
+      const list = document.getElementById("book-list");
+      list.innerHTML = "";
+      for (const book of books) {
+        const li = document.createElement("li");
+        li.textContent = `#${book.id} ${book.title} — ${book.author}`;
+        const del = document.createElement("button");
+        del.textContent = "Delete";
+        del.onclick = () => deleteBook(book.id);
+        li.appendChild(del);
+        list.appendChild(li);
+      }
+    }
+
+    // ---------- POST /api/books ----------
+    async function addBook() {
+      const body = {
+        title: document.getElementById("title").value,
+        author: document.getElementById("author").value,
+      };
+      const response = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },  // tell the server we send JSON
+        body: JSON.stringify(body),                        // JS object -> JSON text
+      });
+      const data = await response.json();
+      showRaw("POST", "/api/books", response.status, data);
+
+      const errorBox = document.getElementById("book-error");
+      if (!response.ok) {           // response.ok is true for status 200-299
+        errorBox.textContent = data.error;
+        return;
+      }
+      errorBox.textContent = "";
+      document.getElementById("title").value = "";
+      document.getElementById("author").value = "";
+      loadBooks();
+    }
+
+    // ---------- DELETE /api/books/<id> ----------
+    async function deleteBook(id) {
+      const response = await fetch(`/api/books/${id}`, { method: "DELETE" });
+      const data = await response.json();
+      showRaw("DELETE", `/api/books/${id}`, response.status, data);
+      loadBooks();
+    }
+
+    // ---------- GET /api/weather?city=... ----------
+    async function getWeather() {
+      const city = document.getElementById("city").value;
+      // encodeURIComponent makes the city name safe to put in a URL (e.g. spaces).
+      const url = `/api/weather?city=${encodeURIComponent(city)}`;
+      const result = document.getElementById("weather-result");
+      result.textContent = "Loading...";
+
+      const response = await fetch(url);
+      const data = await response.json();
+      showRaw("GET", url, response.status, data);
+
+      if (!response.ok) {
+        result.className = "error";
+        result.textContent = data.error;   // textContent (not innerHTML) is safe for user text
+        return;
+      }
+      result.className = "";
+      result.textContent =
+        `${data.city}, ${data.country}: ${data.temperature_c}°C, wind ${data.wind_speed_kmh} km/h`;
+    }
+
+    // Load the books as soon as the page opens.
+    loadBooks();
+  </script>
+</body>
+</html>
